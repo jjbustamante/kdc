@@ -12,6 +12,7 @@ Una aplicación Flask simple que utiliza `bcrypt`, una librería que requiere co
 kdc/
 ├── app.py              # Aplicación Flask con bcrypt
 ├── requirements.txt    # Dependencias Python (incluye bcrypt)
+├── Procfile           # Define cómo ejecutar la app (buildpacks)
 ├── Dockerfile         # Multi-arch Dockerfile (complejo)
 ├── .dockerignore     # Archivos a ignorar
 └── README.md         # Este archivo
