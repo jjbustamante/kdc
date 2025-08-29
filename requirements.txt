@@ -1,0 +1,9 @@
+# Flask web framework
+Flask==3.0.0
+
+# bcrypt - requires native compilation (C extension)
+# This is the key dependency that demonstrates multi-arch complexity
+bcrypt==4.1.2
+
+# WSGI server for production
+gunicorn==21.2.0

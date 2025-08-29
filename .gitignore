@@ -1,3 +1,10 @@
+# Python virtual environment
+venv/
+env/
+.venv/
+.env/
+__pycache__/
+
 # Logs
 logs
 *.log
