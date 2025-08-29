@@ -59,11 +59,23 @@ jobs:
           echo "✅ Flask app working correctly"
           kill $APP_PID
 
-  # Build with buildpacks for AMD64
-  build-amd64:
-    name: 🏗️ Build AMD64 with Buildpacks
-    runs-on: ubuntu-latest
+  # Build with buildpacks using matrix strategy
+  build-multiarch:
+    name: 🏗️ Build ${{ matrix.arch }} with Buildpacks
+    runs-on: ${{ matrix.runner }}
     needs: test
+    strategy:
+      matrix:
+        include:
+          - arch: AMD64
+            runner: ubuntu-latest
+            docker_arch: amd64
+            expected_arch: x86_64
+          - arch: ARM64  
+            runner: ubuntu-24.04-arm
+            docker_arch: arm64
+            expected_arch: aarch64
+      fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,16 +89,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build with Buildpacks (AMD64)
+      - name: Build with Buildpacks (${{ matrix.arch }})
         run: |
-          pack build ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:amd64 \
+          pack build ${{ env.IMAGE_NAME }}:${{ matrix.docker_arch }} \
             --builder heroku/builder:24 \
             --publish
 
-      - name: Test built image
+      - name: Test built image (${{ matrix.arch }})
         run: |
-          docker run --rm -p 5000:5000 -d --name test-app \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:amd64
+          docker run --rm -p 5000:5000 -d --name test-app-${{ matrix.docker_arch }} \
+            ${{ env.IMAGE_NAME }}:${{ matrix.docker_arch }}
           
           sleep 5
           
@@ -94,10 +106,11 @@ jobs:
           response=$(curl -s http://localhost:5000/)
           echo "Response: $response"
           
-          if echo "$response" | grep -q "x86_64"; then
-            echo "✅ AMD64 architecture detected correctly"
+          if echo "$response" | grep -q "${{ matrix.expected_arch }}"; then
+            echo "✅ ${{ matrix.arch }} architecture detected correctly"
           else
-            echo "❌ Architecture detection failed"
+            echo "❌ Architecture detection failed for ${{ matrix.arch }}"
+            echo "Expected: ${{ matrix.expected_arch }}, Got: $response"
             exit 1
           fi
           
@@ -107,60 +120,78 @@ jobs:
             -d '{"password": "test123"}')
           
           if echo "$hash_response" | grep -q "bcrypt_working.*true"; then
-            echo "✅ bcrypt working in container"
+            echo "✅ bcrypt working in ${{ matrix.arch }} container"
           else
-            echo "❌ bcrypt not working"
+            echo "❌ bcrypt not working in ${{ matrix.arch }}"
             exit 1
           fi
           
-          docker stop test-app
+          docker stop test-app-${{ matrix.docker_arch }}
 
-  # Simulate ARM64 build (GitHub Actions doesn't have free ARM64 runners)
-  simulate-arm64:
-    name: 💭 ARM64 Build Simulation
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Explain ARM64 building with Buildpacks
+      - name: Matrix build summary
         run: |
-          echo "## 🏗️ ARM64 Building with Buildpacks" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 ${{ matrix.arch }} Build Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### On actual ARM64 runner, the command would be:" >> $GITHUB_STEP_SUMMARY
-          echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "pack build ${{ env.IMAGE_NAME }}:arm64 --builder heroku/builder:24 --publish" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ✨ Buildpacks Magic:" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔍 **Auto-detects** ARM64 architecture" >> $GITHUB_STEP_SUMMARY  
-          echo "- 📦 **Downloads** ARM64 buildpack components" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔧 **Compiles** bcrypt natively for ARM64" >> $GITHUB_STEP_SUMMARY
-          echo "- 🚀 **Publishes** optimized ARM64 image" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Result**: Same simple command, different architecture! 🎯" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Image**: \`${{ env.IMAGE_NAME }}:${{ matrix.docker_arch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "🏃 **Runner**: ${{ matrix.runner }}" >> $GITHUB_STEP_SUMMARY  
+          echo "🏛️ **Architecture**: ${{ matrix.expected_arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "🔧 **bcrypt**: Compiled natively for ${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
 
   # Create multi-arch manifest
-  demo-summary:
-    name: 📋 Demo Summary
+  create-manifest:
+    name: 📦 Create Multi-Arch Manifest
     runs-on: ubuntu-latest
-    needs: [build-amd64, simulate-arm64]
+    needs: [build-multiarch]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker manifest create \
+            ${{ env.IMAGE_NAME }}:latest \
+            ${{ env.IMAGE_NAME }}:amd64 \
+            ${{ env.IMAGE_NAME }}:arm64
+
+          docker manifest annotate \
+            ${{ env.IMAGE_NAME }}:latest \
+            ${{ env.IMAGE_NAME }}:amd64 \
+            --arch amd64
+
+          docker manifest annotate \
+            ${{ env.IMAGE_NAME }}:latest \
+            ${{ env.IMAGE_NAME }}:arm64 \
+            --arch arm64
+
+          docker manifest push ${{ env.IMAGE_NAME }}:latest
+
+  demo-summary:
+    name: 📋 Demo Summary  
+    runs-on: ubuntu-latest
+    needs: [create-manifest]
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Output demo summary
         run: |
           echo "## 🚀 Buildpacks Multi-Architecture Demo Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎯 Successfully Demonstrated:" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **AMD64 Image Built**: \`${{ env.IMAGE_NAME }}:amd64\` (real build)" >> $GITHUB_STEP_SUMMARY
-          echo "💭 **ARM64 Concept**: Same command works on ARM64 runners" >> $GITHUB_STEP_SUMMARY
-          echo "📱 **Available on Docker Hub**: [jjbustamante/kdc](https://hub.docker.com/r/jjbustamante/kdc)" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Successfully Built & Published:" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **AMD64 Image**: \`${{ env.IMAGE_NAME }}:amd64\` (ubuntu-latest)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **ARM64 Image**: \`${{ env.IMAGE_NAME }}:arm64\` (ubuntu-24.04-arm)" >> $GITHUB_STEP_SUMMARY
+          echo "🎯 **Multi-Arch**: \`${{ env.IMAGE_NAME }}:latest\` (universal)" >> $GITHUB_STEP_SUMMARY
+          echo "📱 **Available on**: [Docker Hub](https://hub.docker.com/r/jjbustamante/kdc)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔑 Key Benefits Demonstrated:" >> $GITHUB_STEP_SUMMARY
           echo "- 🔥 **Zero Dockerfile complexity** for native dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "- ⚡ **Automatic bcrypt compilation** detected and handled" >> $GITHUB_STEP_SUMMARY  
-          echo "- 🛠️ **One command** works across architectures" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Same pack command** works on both architectures" >> $GITHUB_STEP_SUMMARY  
+          echo "- 🛠️ **Native bcrypt compilation** handled automatically" >> $GITHUB_STEP_SUMMARY
           echo "- 📦 **Production-ready** images with optimized layering" >> $GITHUB_STEP_SUMMARY
-          echo "- 🚀 **CI/CD ready** with minimal configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚀 **True multi-arch** with matrix strategy" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🆚 vs Traditional Dockerfile:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dockerfile**: 50+ lines, architecture conditionals, manual dependency management" >> $GITHUB_STEP_SUMMARY
-          echo "- **Buildpacks**: 1 line, automatic everything! ✨" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dockerfile**: 50+ lines, architecture conditionals, complex setup" >> $GITHUB_STEP_SUMMARY
+          echo "- **Buildpacks**: 1 command, automatic everything! ✨" >> $GITHUB_STEP_SUMMARY
