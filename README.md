@@ -11,10 +11,13 @@ Una aplicación Flask simple que utiliza `bcrypt`, una librería que requiere co
 ```
 kdc/
 ├── app.py              # Aplicación Flask con bcrypt
-├── requirements.txt    # Dependencias Python (incluye bcrypt)
+├── requirements.txt    # Dependencias Python (incluye bcrypt)  
 ├── Procfile           # Define cómo ejecutar la app (buildpacks)
 ├── Dockerfile         # Multi-arch Dockerfile (complejo)
+├── demo-docker.sh     # 🎬 Script demo Docker (presentación)
+├── demo-pack.sh       # 🎬 Script demo Buildpacks (presentación)
 ├── .dockerignore     # Archivos a ignorar
+├── .github/workflows/ # GitHub Actions multi-arch workflow
 └── README.md         # Este archivo
 ```
 
@@ -54,7 +57,38 @@ pack build buildpack-demo-pack --builder heroku/builder:24
 pack build buildpack-demo-pack --builder heroku/builder:24
 ```
 
-## 🧪 Probar la Aplicación
+## 🎬 Demo Scripts (¡Perfecto para presentaciones!)
+
+Para facilitar las demostraciones en vivo, incluimos scripts automatizados:
+
+### 🐳 Demo Docker (Complejidad tradicional)
+```bash
+./demo-docker.sh
+```
+
+**Lo que hace:**
+- Muestra la complejidad del Dockerfile (50+ líneas)
+- Construye imagen multi-arquitectura con Docker
+- Prueba todos los endpoints automáticamente
+- Resalta los puntos de dolor del enfoque tradicional
+
+### 📦 Demo Buildpacks (Simplicidad moderna)
+```bash
+./demo-pack.sh
+```
+
+**Lo que hace:**
+- Demuestra la simplicidad (1 comando)
+- Construye con `pack build` automáticamente
+- Prueba la misma funcionalidad
+- Compara resultados con Docker
+
+### 🚀 Flujo recomendado para presentación:
+1. `./demo-docker.sh` - Muestra el problema
+2. `./demo-pack.sh` - Muestra la solución
+3. Compara ambos enfoques lado a lado
+
+## 🧪 Probar Manualmente
 
 ### Ejecutar localmente
 
