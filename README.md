@@ -139,7 +139,7 @@ Este repositorio incluye un workflow completo que demuestra buildpacks en CI:
 
 ```yaml
 # .github/workflows/buildpacks-demo.yml
-- uses: buildpacks/github-actions/setup-pack@v5
+- uses: buildpacks/github-actions/setup-pack@v5.9.3
 - run: pack build image --builder heroku/builder:24 --publish
 ```
 
